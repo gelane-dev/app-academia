@@ -10,7 +10,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     email: Mapped[str] = mapped_column(String(150), unique=True)
     senha: Mapped[str] = mapped_column(String(255))
-    tipo: Mapped[str] = mapped_column(String(50))
+    tipo: Mapped[str] = mapped_column(String(50), default="aluno")
     professor: Mapped["Professor"] = relationship(back_populates="user", uselist=False)
     aluno: Mapped["Aluno"] = relationship(back_populates="user", uselist=False)
 
