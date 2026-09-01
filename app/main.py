@@ -2,11 +2,11 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from .database import get_db
-from .schemas.usuario import UsuarioCriar, UsuarioResposta, UsuarioLogin
+from .schemas.usuario import UsuarioCriar, UsuarioResposta, UsuarioLogin, ProfessorAtualizar, AlunoAtualizar
 from .models import User, Professor
 from .core.seguranca import criar_hash, verificar_senha, criar_token, verificar_token, verificar_professor, verificar_aluno, verificar_admin
 from .schemas.professor import ProfessorCriar
-
+from .schemas.atualizar_usuario import UsuarioAtualizar
 app = FastAPI(
     title="Academia API",
     description="API gerenciamento de academia",
@@ -72,10 +72,83 @@ def meu_perfil(verificar: dict = Depends(verificar_token), db: Session = Depends
     if not usuario:
         raise HTTPException(
             status_code=401,
-            detail="Usuario não encontado"
+            detail="Usuario não encontrado"
         )
     
     return usuario
+
+@app.put("/perfil/professor")
+def perfil_professor(dados: ProfessorAtualizar, verificar: dict = Depends(verificar_token), db: Session = Depends(get_db),):
+
+    id_usuario = int(verificar["sub"])
+    
+    usuario = db.scalar(
+    select(User).where(User.id == id_usuario))
+
+    if not usuario:
+        raise HTTPException(
+            status_code=404,
+            detail="Usuario não encontrado"
+        )
+    
+    if usuario.tipo != "professor":
+        raise HTTPException(
+            status_code=403,
+            detail="Acesso permitido apenas para professores"
+        )
+
+    professor = db.scalar(
+    select(Professor).where(Professor.user_id == id_usuario))
+        
+    if not professor:
+        raise HTTPException(
+            status_code=404,
+            detail="Perfil de professor não encontrado"
+        )
+
+    professor.nome = dados.nome
+    professor.telefone = dados.telefone
+    
+    db.commit()
+
+    return {"mensagem":"Alterações feitas"}
+
+@app.put("/perfil/aluno")
+def perfil_aluno(dados: AlunoAtualizar, verificar: dict = Depends(verificar_token), db: Session = Depends(get_db),):
+    
+    id_usuario = int(verificar["sub"])
+    
+    usuario = db.scalar(
+    select(User).where(User.id == id_usuario))
+
+    if not usuario:
+        raise HTTPException(
+            status_code=404,
+            detail="Usuario não encontrado"
+        )
+
+    if usuario.tipo != "aluno":
+        raise HTTPException(
+            status_code=403,
+            detail="Acesso permitido apenas para alunos"
+        )
+
+    aluno = db.scalar(
+    select(Aluno).where(Aluno.user_id == id_usuario))
+        
+    if not aluno:
+        raise HTTPException(
+            status_code=404,
+            detail="Perfil de aluno não encontrado"
+        )
+
+    aluno.nome = dados.nome
+    aluno.telefone = dados.telefone
+    aluno.data_nascimento = dados.data_nascimento
+
+    db.commit()
+
+    return {"mensagem":"Alterações feitas"}
 
 @app.get("/professor")
 def conta_professor(professor = Depends(verificar_professor)):
@@ -108,7 +181,8 @@ def criar_professor(dados: ProfessorCriar, admin = Depends(verificar_admin), db:
     professor = Professor( 
         user_id=usuario.id, 
         nome=dados.nome, 
-        telefone=dados.telefone ) 
+        telefone=dados.telefone 
+        ) 
     
     db.add(professor) 
     db.commit() 
