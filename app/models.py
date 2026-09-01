@@ -13,6 +13,7 @@ class User(Base):
     tipo: Mapped[str] = mapped_column(String(50), default="aluno")
     professor: Mapped["Professor"] = relationship(back_populates="user", uselist=False)
     aluno: Mapped["Aluno"] = relationship(back_populates="user", uselist=False)
+    foto: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 class Professor(Base):
     __tablename__="professores"
