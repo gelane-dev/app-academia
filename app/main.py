@@ -2,11 +2,12 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from .database import get_db
-from .schemas.usuario import UsuarioCriar, UsuarioResposta, UsuarioLogin, ProfessorAtualizar, AlunoAtualizar
-from .models import User, Professor
+from .schemas.usuario import UsuarioCriar, UsuarioResposta, UsuarioLogin, ProfessorAtualizar, AlunoAtualizar, AlunoResposta, ProfessorResposta, EmailAtualizar, SenhaAtualizar
+from .models import User, Professor, Aluno
 from .core.seguranca import criar_hash, verificar_senha, criar_token, verificar_token, verificar_professor, verificar_aluno, verificar_admin
 from .schemas.professor import ProfessorCriar
-from .schemas.atualizar_usuario import UsuarioAtualizar
+
+
 app = FastAPI(
     title="Academia API",
     description="API gerenciamento de academia",
@@ -41,13 +42,8 @@ select(User).where(User.email == dados.email))
 @app.post("/cadastro", response_model=UsuarioResposta)
 def criar_usuario(dados: UsuarioCriar, db: Session = Depends(get_db)):
 
-    usuario = User(
-        email=dados.email,
-        senha=criar_hash(dados.senha)
-    )
-
     usuario_existente = db.scalar(
-select(User).where(User.email == dados.email))
+    select(User).where(User.email == dados.email))
     
     if usuario_existente:
         raise HTTPException(
@@ -55,7 +51,22 @@ select(User).where(User.email == dados.email))
             detail="E-mail já cadastrado"
         )
 
+    usuario = User(
+        email=dados.email,
+        senha=criar_hash(dados.senha)
+    )
+
     db.add(usuario)
+    db.flush()
+
+    aluno = Aluno(
+    user_id=usuario.id,
+    nome=dados.nome,
+    telefone=dados.telefone,
+    data_nascimento=dados.data_nascimento
+    )
+    
+    db.add(aluno)
     db.commit()
     db.refresh(usuario)
 
@@ -73,6 +84,38 @@ def meu_perfil(verificar: dict = Depends(verificar_token), db: Session = Depends
         raise HTTPException(
             status_code=401,
             detail="Usuario não encontrado"
+        )
+    
+    return usuario
+
+@app.get("/perfil/professor", response_model=ProfessorResposta)
+def meu_perfil_professor(professor = Depends(verificar_professor), verificar: dict = Depends(verificar_token), db: Session = Depends(get_db),):
+
+    id_usuario = int(verificar["sub"])
+    
+    usuario = db.scalar(
+    select(Professor).where(Professor.user_id == id_usuario))
+
+    if not usuario:
+        raise HTTPException(
+            status_code=404,
+            detail="Perfil de professor não encontrado"
+        )
+    
+    return usuario
+
+@app.get("/perfil/aluno", response_model=AlunoResposta)
+def meu_perfil_aluno(aluno = Depends(verificar_aluno), verificar: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+
+    id_usuario = int(verificar["sub"])
+    
+    usuario = db.scalar(
+    select(Aluno).where(Aluno.user_id == id_usuario))
+
+    if not usuario:
+        raise HTTPException(
+            status_code=404,
+            detail="Perfil de aluno não encontrado"
         )
     
     return usuario
@@ -189,3 +232,58 @@ def criar_professor(dados: ProfessorCriar, admin = Depends(verificar_admin), db:
     db.refresh(professor) 
     
     return { "mensagem": "Professor criado com sucesso" }
+
+@app.put("/perfil/email")
+def mudar_email(dados: EmailAtualizar, verificar: dict = Depends(verificar_token), db: Session = Depends(get_db),):
+
+    id_usuario = int(verificar["sub"])
+    
+    usuario = db.scalar(
+    select(User).where(User.id == id_usuario))
+
+    if not usuario:
+        raise HTTPException(
+            status_code=404,
+            detail="Usuario não encontrado"
+        )
+    
+    usuario_existente = db.scalar(
+    select(User).where(User.email == dados.email))
+    
+    if usuario_existente:
+        raise HTTPException(
+            status_code=400,
+            detail="E-mail já cadastrado"
+        )
+
+    usuario.email = dados.email
+
+    db.commit()
+        
+    return {"mensagem": "E-mail alterado com sucesso"}
+
+@app.put("/perfil/senha")
+def mudar_senha(dados: SenhaAtualizar, verificar: dict = Depends(verificar_token), db: Session = Depends(get_db),):
+
+    id_usuario = int(verificar["sub"])
+    
+    usuario = db.scalar(
+    select(User).where(User.id == id_usuario))
+
+    if not usuario:
+        raise HTTPException(
+            status_code=404,
+            detail="Usuario não encontrado"
+        )
+    
+    if not verificar_senha(dados.senha_atual, usuario.senha):
+        raise HTTPException(
+            status_code=401,
+            detail="Senha atual incorreta"
+        )
+
+    usuario.senha = criar_hash(dados.nova_senha)
+
+    db.commit()
+        
+    return {"mensagem": "Senha alterada com sucesso"}
