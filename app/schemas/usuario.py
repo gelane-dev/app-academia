@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-
+from datetime import date
 
 class UsuarioBase(BaseModel):
     email: EmailStr
@@ -13,3 +13,12 @@ class UsuarioResposta(UsuarioBase):
 class UsuarioLogin(BaseModel):
     email: EmailStr
     senha: str
+
+class AlunoAtualizar(BaseModel):
+    nome: str
+    telefone: str
+    data_nascimento: date
+
+class ProfessorAtualizar(BaseModel):
+    nome: str
+    telefone: str
