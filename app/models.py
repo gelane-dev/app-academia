@@ -43,7 +43,9 @@ class Exercicio(Base):
     descricao: Mapped[str] = mapped_column(String(500))
     grupo_muscular: Mapped[str] = mapped_column(String(150))
     itens: Mapped[list["ItemFicha"]] = relationship(back_populates="exercicio")
-
+    imagem: Mapped[str] = mapped_column(String(500), nullable=True)
+    video: Mapped[str] = mapped_column(String(500), nullable=True)
+    
 class Ficha(Base):
     __tablename__="fichas"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
