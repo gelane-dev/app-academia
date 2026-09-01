@@ -3,8 +3,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from .database import get_db
 from .schemas.usuario import UsuarioCriar, UsuarioResposta, UsuarioLogin
-from .models import User
-from .core.seguranca import criar_hash, verificar_senha, criar_token, verificar_token
+from .models import User, Professor
+from .core.seguranca import criar_hash, verificar_senha, criar_token, verificar_token, verificar_professor, verificar_aluno, verificar_admin
+from .schemas.professor import ProfessorCriar
 
 app = FastAPI(
     title="Academia API",
@@ -48,7 +49,7 @@ def criar_usuario(dados: UsuarioCriar, db: Session = Depends(get_db)):
     usuario_existente = db.scalar(
 select(User).where(User.email == dados.email))
     
-    if usuario_existetente:
+    if usuario_existente:
         raise HTTPException(
             status_code=400,
             detail="E-mail já cadastrado"
@@ -61,7 +62,7 @@ select(User).where(User.email == dados.email))
     return usuario
 
 @app.get("/perfil", response_model=UsuarioResposta)
-def meu_perfil(db: Session = Depends(get_db), verificar: dict = Depends(verificar_token)):
+def meu_perfil(verificar: dict = Depends(verificar_token), db: Session = Depends(get_db),):
 
     id_usuario = int(verificar["sub"])
     
@@ -75,3 +76,42 @@ def meu_perfil(db: Session = Depends(get_db), verificar: dict = Depends(verifica
         )
     
     return usuario
+
+@app.get("/professor")
+def conta_professor(professor = Depends(verificar_professor)):
+
+    return professor.id
+
+@app.get("/aluno")
+def conta_aluno(aluno = Depends(verificar_aluno)):
+    return aluno.id
+
+@app.post("/admin/professores")
+def criar_professor(dados: ProfessorCriar, admin = Depends(verificar_admin), db: Session = Depends(get_db)):
+    
+    usuario_existente = db.scalar(
+    select(User).where(User.email == dados.email))
+
+    if usuario_existente: 
+        raise HTTPException( 
+            status_code=400, 
+            detail="E-mail já cadastrado" 
+        ) 
+    
+    usuario = User( email=dados.email, 
+        senha=criar_hash(dados.senha), 
+        tipo="professor" ) 
+    
+    db.add(usuario) 
+    db.flush() 
+    
+    professor = Professor( 
+        user_id=usuario.id, 
+        nome=dados.nome, 
+        telefone=dados.telefone ) 
+    
+    db.add(professor) 
+    db.commit() 
+    db.refresh(professor) 
+    
+    return { "mensagem": "Professor criado com sucesso" }
