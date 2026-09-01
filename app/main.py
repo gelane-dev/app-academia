@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from .database import get_db
@@ -6,8 +7,8 @@ from .schemas.usuario import UsuarioCriar, UsuarioResposta, UsuarioLogin, Profes
 from .models import User, Professor, Aluno
 from .core.seguranca import criar_hash, verificar_senha, criar_token, verificar_token, verificar_professor, verificar_aluno, verificar_admin
 from .schemas.professor import ProfessorCriar
-
-
+from pathlib import Path
+import uuid
 app = FastAPI(
     title="Academia API",
     description="API gerenciamento de academia",
@@ -287,3 +288,125 @@ def mudar_senha(dados: SenhaAtualizar, verificar: dict = Depends(verificar_token
     db.commit()
         
     return {"mensagem": "Senha alterada com sucesso"}
+
+@app.put("/perfil/foto")
+async def mudar_foto(arquivo: UploadFile = File(), verificar: dict = Depends(verificar_token), db: Session = Depends(get_db),):
+
+    id_usuario = int(verificar["sub"])
+    
+    usuario = db.scalar(
+    select(User).where(User.id == id_usuario))
+
+    if not usuario:
+        raise HTTPException(
+            status_code=404,
+            detail="Usuario não encontrado"
+        )
+    
+    extensao = Path(arquivo.filename).suffix.lower()
+
+    extensoes_permitidas = [".jpg", ".jpeg", ".png"]
+
+    if extensao not in extensoes_permitidas:
+        raise HTTPException(
+            status_code=400,
+            detail="Formato de imagem não permitido"
+        )
+
+    imagem_bytes = await arquivo.read()
+
+    tamanho = len(imagem_bytes)
+
+    if tamanho > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=400,
+            detail="A imagem deve ter no máximo 5 MB" 
+        )
+
+    pasta = Path("uploads/perfis")
+    pasta.mkdir(parents=True, exist_ok=True)
+
+    nome_arquivo = f"{uuid.uuid4().hex[:12]}{extensao}"
+
+    caminho = pasta / nome_arquivo
+
+    with open(caminho, "wb") as imagem:
+        imagem.write(imagem_bytes)
+
+    if usuario.foto:
+        caminho_antigo = Path(usuario.foto)
+    
+        if caminho_antigo.exists():
+            caminho_antigo.unlink()
+    
+    usuario.foto = str(caminho)
+
+    db.commit()
+
+    return {"mensagem": "Foto de perfil atualizada com sucesso"}
+
+@app.get("/perfil/foto")
+def exibir_foto(verificar: dict = Depends(verificar_token), db: Session = Depends(get_db),):
+
+    id_usuario = int(verificar["sub"])
+    
+    usuario = db.scalar(
+    select(User).where(User.id == id_usuario))
+
+    if not usuario:
+        raise HTTPException(
+            status_code=404,
+            detail="Usuário não encontrado"
+        )
+    
+    if not usuario.foto:
+          raise HTTPException(
+            status_code=404,
+            detail="Foto de perfil não encontrada"
+        )
+
+    caminho = Path(usuario.foto)
+
+    if not caminho.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Arquivo da foto não encontrado"
+        )
+
+    return FileResponse(caminho)
+
+@app.delete("/perfil/foto")
+def remover_foto(verificar: dict = Depends(verificar_token), db: Session = Depends(get_db),):
+
+    id_usuario = int(verificar["sub"])
+    
+    usuario = db.scalar(
+    select(User).where(User.id == id_usuario))
+
+    if not usuario:
+        raise HTTPException(
+            status_code=404,
+            detail="Usuário não encontrado"
+        )
+    
+    if not usuario.foto:
+        raise HTTPException(
+            status_code=404,
+            detail="Foto de perfil não encontrada"
+        )
+
+    caminho = Path(usuario.foto)
+
+    if not caminho.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Arquivo da foto não encontrado"
+        )
+
+    caminho.unlink()
+    
+    usuario.foto = None
+
+    db.commit()
+
+    return {"mensagem": "Foto de perfil removida com sucesso"}
