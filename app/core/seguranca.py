@@ -3,7 +3,11 @@ from pwdlib.hashers.bcrypt import BcryptHasher
 from datetime import datetime, timedelta, timezone
 from jose import jwt, JWTError
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi import Depends,HTTPException, status
+from fastapi import Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+from ..database import get_db
+from ..models import User
 import os
 from dotenv import load_dotenv
 
@@ -44,3 +48,47 @@ def verificar_token(credenciais: HTTPAuthorizationCredentials = Depends(seguranc
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido ou expirado")
 
+def verificar_professor(verificar = Depends(verificar_token), db: Session = Depends(get_db)):
+    
+    sub_usuario = int(verificar["sub"])
+
+    usuario = db.scalar(
+    select(User).where(User.id == sub_usuario))
+
+    if not usuario.tipo == "professor":
+        raise HTTPException(
+            status_code=403,
+            detail="Acesso permitido apenas para professor"
+        )
+
+    return usuario
+
+def verificar_aluno(verificar = Depends(verificar_token), db: Session = Depends(get_db)):
+
+    sub_usuario = int(verificar["sub"])
+
+    usuario = db.scalar(
+    select(User).where(User.id == sub_usuario))
+
+    if not usuario.tipo == "aluno":
+        raise HTTPException(
+            status_code=403,
+            detail="Acesso permitido apenas para alunos"
+        )
+
+    return usuario
+
+def verificar_admin(verificar = Depends(verificar_token), db: Session = Depends(get_db)):
+
+    sub_usuario = int(verificar["sub"])
+
+    usuario = db.scalar(
+    select(User).where(User.id == sub_usuario))
+
+    if not usuario.tipo == "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Acesso permitido apenas para admin"
+        )
+
+    return usuario
