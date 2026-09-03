@@ -11,4 +11,6 @@ class Exercicio(Base):
     grupo_muscular: Mapped[str] = mapped_column(String(150))
     itens: Mapped[list["ItemFicha"]] = relationship(back_populates="exercicio")
     imagem: Mapped[str] = mapped_column(String(500), nullable=True)
+    imagem_public_id: Mapped[str] = mapped_column(String(500), nullable=True)
     video: Mapped[str] = mapped_column(String(500), nullable=True)
+    video_public_id: Mapped[str] = mapped_column(String(500), nullable=True)
