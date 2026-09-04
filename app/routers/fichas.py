@@ -5,8 +5,8 @@ from datetime import datetime
 
 from ..database import get_db
 from ..core.seguranca import verificar_professor, verificar_aluno
-from ..schemas.ficha import FichaCriar, ItemFichaCriar, AtualizarFicha, FichaResposta, AtualizarItemFicha, ExecucaoHistorico, HistoricoResposta
-from ..models import Aluno, Ficha, ItemFicha, Exercicio
+from ..schemas.ficha import FichaCriar, ItemFichaCriar, AtualizarFicha, FichaResposta, ItemFichaResposta, AtualizarItemFicha, ExecucaoHistorico, HistoricoResposta
+from ..models import Aluno, Ficha, ItemFicha, Exercicio, HistoricoExecucao
 
 router = APIRouter()
 
@@ -280,16 +280,16 @@ def treino_realizado(dados: ExecucaoHistorico, aluno=Depends(verificar_aluno), d
 
     return {"mensagem": "treino registrado com sucesso"}
 
-@router.get("/ficha/progresso", response_model=list[FichaResposta])
+@router.get("/ficha/progresso", response_model=list[HistoricoResposta])
 def historico_progresso(aluno=Depends(verificar_aluno), db: Session = Depends(get_db)):
 
-    fichas = db.scalars(
+    historicos = db.scalars(
         select(HistoricoExecucao).where(HistoricoExecucao.aluno_id == aluno.id,)).all()
 
-    if not fichas:
+    if not historicos:
         raise HTTPException(
             status_code=404,
-            detail="Você não possui fichas de treino ativas"
+            detail="Você não possui histórico de treino"
         )
     
-    return fichas
+    return historicos
