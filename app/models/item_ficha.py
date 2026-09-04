@@ -1,4 +1,4 @@
-from sqlalchemy import Integer, Float, ForeignKey
+from sqlalchemy import Integer, Float, ForeignKey, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -15,3 +15,4 @@ class ItemFicha(Base):
     carga: Mapped[float] = mapped_column(Float)
     descanso: Mapped[int] = mapped_column(Integer)
     historicos: Mapped[list["HistoricoExecucao"]] = relationship(back_populates="item_ficha")
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True)
