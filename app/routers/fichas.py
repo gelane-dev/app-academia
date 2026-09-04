@@ -5,12 +5,12 @@ from datetime import datetime
 
 from ..database import get_db
 from ..core.seguranca import verificar_professor, verificar_aluno
-from ..schemas.ficha import FichaCriar, ItemFichaCriar, AtualizarFicha
+from ..schemas.ficha import FichaCriar, ItemFichaCriar, AtualizarFicha, FichaResposta, AtualizarItemFicha, ExecucaoHistorico, HistoricoResposta
 from ..models import Aluno, Ficha, ItemFicha, Exercicio
 
 router = APIRouter()
 
-@router.post("/criarficha")
+@router.post("/ficha")
 def criar_ficha(criar: FichaCriar, professor=Depends(verificar_professor), db: Session = Depends(get_db)):
 
     aluno = db.scalar(
@@ -26,7 +26,8 @@ def criar_ficha(criar: FichaCriar, professor=Depends(verificar_professor), db: S
         aluno_id = aluno.id,
         professor_id = professor.id,
         nome = criar.nome,
-        data_criacao = datetime.now()
+        data_criacao = datetime.now(),
+        ativo=True
     )
         
     db.add(ficha) 
@@ -35,11 +36,11 @@ def criar_ficha(criar: FichaCriar, professor=Depends(verificar_professor), db: S
 
     return ficha
 
-@router.post("/ficha/item")
+@router.post("/ficha/itens")
 def criar_itens_ficha(criar: ItemFichaCriar, professor=Depends(verificar_professor), db: Session = Depends(get_db)):
 
     ficha = db.scalar(
-        select(Ficha).where(Ficha.id  == criar.ficha_id))
+        select(Ficha).where(Ficha.id  == criar.ficha_id, Ficha.ativo.is_(True)))
 
     if not ficha:
         raise HTTPException(
@@ -53,7 +54,7 @@ def criar_itens_ficha(criar: ItemFichaCriar, professor=Depends(verificar_profess
             detail="Você não é o professor responsável por esta ficha"
         )
     
-    exercicio = select(Exercicio).where(Exercicio.id == criar.exercicio_id)
+    exercicio = db.scalar(select(Exercicio).where(Exercicio.id == criar.exercicio_id))
     
     if not exercicio:
         raise HTTPException(
@@ -67,7 +68,8 @@ def criar_itens_ficha(criar: ItemFichaCriar, professor=Depends(verificar_profess
         series = criar.series,
         repeticoes = criar.repeticoes,
         carga = criar.carga,
-        descanso = criar.descanso
+        descanso = criar.descanso,
+        ativo=True
     )
         
     db.add(item)
@@ -80,7 +82,7 @@ def criar_itens_ficha(criar: ItemFichaCriar, professor=Depends(verificar_profess
 def ficha_aluno(id: int, aluno=Depends(verificar_aluno), db: Session = Depends(get_db)):
 
     ficha = db.scalar(
-        select(Ficha).where(Ficha.id == id))
+        select(Ficha).where(Ficha.id == id, Ficha.ativo.is_(True)))
 
     if not ficha:
         raise HTTPException(
@@ -93,11 +95,116 @@ def ficha_aluno(id: int, aluno=Depends(verificar_aluno), db: Session = Depends(g
             status_code=404,
             detail="Ficha não encontrada"
         )
+    
+    ativos = db.scalars(
+        select(ItemFicha).where(ItemFicha.ficha_id == ficha.id, ItemFicha.ativo.is_(True))).all()
+
+    ficha.itens = ativos
 
     return ficha
 
-@router.put("/ficha/atualizar/{id}", response_model=FichaResposta)
-def atualizar_nome(id: int, ficha: AtualizarFicha, professor=Depends(verificar_professor), db: Session = Depends(get_db)):
+@router.put("/ficha/{id}", response_model=FichaResposta)
+def atualizar_ficha(id: int, dados: AtualizarFicha, professor=Depends(verificar_professor), db: Session = Depends(get_db)):
+
+    ficha = db.scalar(
+        select(Ficha).where(Ficha.id == id))
+
+    if not ficha:
+        raise HTTPException(
+            status_code=404,
+            detail="Ficha de treino não encontrada"
+        )
+
+    if ficha.professor_id != professor.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Você não tem permissão para alterar esta ficha de treino"
+        )
+
+    ficha.nome = dados.nome
+
+    db.commit()
+    db.refresh(ficha)
+
+    return ficha
+
+@router.put("/ficha/item/{id}", response_model=ItemFichaResposta)
+def atualizar_itens_ficha(id: int, dados: AtualizarItemFicha, professor=Depends(verificar_professor), db: Session = Depends(get_db)):
+
+    item_ficha = db.scalar(
+        select(ItemFicha).where(ItemFicha.id == id, ItemFicha.ativo.is_(True)))
+
+    if not item_ficha:
+        raise HTTPException(
+            status_code=404,
+            detail="Item da ficha não encontrado"
+        )
+
+    ficha = db.scalar(
+        select(Ficha).where(Ficha.id == item_ficha.ficha_id, Ficha.ativo.is_(True)))
+    
+    if not ficha:
+        raise HTTPException(
+            status_code=404,
+            detail="Ficha não encontrada"
+        )
+
+    if ficha.professor_id != professor.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Você não tem permissão para alterar esta ficha de treino"
+        )
+
+    item_ficha.series = dados.series
+    item_ficha.repeticoes = dados.repeticoes
+    item_ficha.carga = dados.carga
+    item_ficha.descanso = dados.descanso
+
+    db.commit()
+    db.refresh(item_ficha)
+
+    return item_ficha
+
+@router.delete("/ficha/item/{id}")
+def deletar_item_ficha(id: int, professor=Depends(verificar_professor), db: Session = Depends(get_db)):
+
+    item_ficha = db.scalar(
+        select(ItemFicha).where(ItemFicha.id == id))
+
+    if not item_ficha:
+        raise HTTPException(
+            status_code=404,
+            detail="Item da ficha não encontrado"
+        )
+    
+    ficha = db.scalar(
+        select(Ficha).where(Ficha.id == item_ficha.ficha_id))
+    
+    if not ficha:
+        raise HTTPException(
+            status_code=404,
+            detail="Ficha não encontrada"
+        )   
+
+    if ficha.professor_id != professor.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Você não tem permissão para excluir este item"
+        )
+
+    if item_ficha.historicos:
+        item_ficha.ativo = False
+    else:
+        db.delete(item_ficha)
+    
+    db.commit()
+
+    return {
+        "mensagem": "Item da ficha excluído com sucesso"
+    }
+
+@router.delete("/ficha/{id}")
+def deletar_ficha(id: int, professor=Depends(verificar_professor), db: Session = Depends(get_db)):
 
     ficha = db.scalar(
         select(Ficha).where(Ficha.id == id))
@@ -107,15 +214,82 @@ def atualizar_nome(id: int, ficha: AtualizarFicha, professor=Depends(verificar_p
             status_code=404,
             detail="Ficha não encontrada"
         )
+
+    if ficha.professor_id != professor.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Você não tem permissão para excluir esta ficha"
+        )
+        
+    ficha.ativo = False
+    db.commit()
+
+    return {
+        "mensagem": "Ficha excluída com sucesso"
+    }
+
+@router.get("/ficha/aluno", response_model=list[FichaResposta])
+def fichas(aluno=Depends(verificar_aluno), db: Session = Depends(get_db)):
+
+    fichas = db.scalars(
+        select(Ficha).where(Ficha.aluno_id == aluno.id, Ficha.ativo.is_(True))).all()
+
+    if not fichas:
+        raise HTTPException(
+            status_code=404,
+            detail="Você não possui fichas de treino ativas"
+        )
     
-    if ficha.aluno_id != aluno.id:
-         raise HTTPException(
+    return fichas
+  
+@router.post("/ficha/treino")
+def treino_realizado(dados: ExecucaoHistorico, aluno=Depends(verificar_aluno), db: Session = Depends(get_db)):
+
+    item_ficha = db.scalar(select(ItemFicha).where(ItemFicha.id == dados.item_ficha_id,
+    ItemFicha.ativo.is_(True)))
+
+    if not item_ficha:
+        raise HTTPException(
+            status_code=404,
+            detail="Item da ficha não encontrado"
+        )
+
+    ficha = db.scalar(select(Ficha).where(Ficha.id == item_ficha.ficha_id, 
+    Ficha.aluno_id == aluno.id, Ficha.ativo.is_(True)))
+    
+    if not ficha:
+        raise HTTPException(
             status_code=404,
             detail="Ficha não encontrada"
         )
 
-    ficha.nome = ficha.nome
-
+    registrar_treino = HistoricoExecucao(
+        item_ficha_id=dados.item_ficha_id,
+        aluno_id=aluno.id,
+        carga_utilizada=dados.carga_utilizada,
+        repeticoes_realizadas=dados.repeticoes_realizadas,
+        series_realizadas=dados.series_realizadas,
+        observacao=dados.observacao,
+        data_execucao=dados.data_execucao
+    )
+    
+    
+    db.add(registrar_treino)
     db.commit()
+    db.refresh(registrar_treino)
 
-    return {"mensagem": "nome atualizado"}
+    return {"mensagem": "treino registrado com sucesso"}
+
+@router.get("/ficha/progresso", response_model=list[FichaResposta])
+def historico_progresso(aluno=Depends(verificar_aluno), db: Session = Depends(get_db)):
+
+    fichas = db.scalars(
+        select(HistoricoExecucao).where(HistoricoExecucao.aluno_id == aluno.id,)).all()
+
+    if not fichas:
+        raise HTTPException(
+            status_code=404,
+            detail="Você não possui fichas de treino ativas"
+        )
+    
+    return fichas
