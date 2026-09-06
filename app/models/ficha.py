@@ -16,3 +16,4 @@ class Ficha(Base):
     data_criacao: Mapped[datetime] = mapped_column(DateTime)
     itens: Mapped[list["ItemFicha"]] = relationship(back_populates="ficha")
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+    treinos: Mapped[list["Treino"]] = relationship(back_populates="ficha")
