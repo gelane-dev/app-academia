@@ -7,6 +7,7 @@ from .ficha import Ficha
 from .item_ficha import ItemFicha
 from .historico_execucao import HistoricoExecucao
 from .avaliacao_fisica import AvaliacaoFisica
+from .treino import Treino
 
 __all__ = [
     "Base",
@@ -18,4 +19,5 @@ __all__ = [
     "ItemFicha",
     "HistoricoExecucao",
     "AvaliacaoFisica",
+    "Treino"
 ]
