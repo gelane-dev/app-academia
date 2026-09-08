@@ -54,7 +54,7 @@ def criar_itens_ficha(criar: ItemFichaCriar, professor=Depends(verificar_profess
             detail="Você não é o professor responsável por esta ficha"
         )
     
-    exercicio = db.scalar(select(Exercicio).where(Exercicio.id == criar.exercicio_id))
+    exercicio = db.scalar(select(Exercicio).where(Exercicio.id == criar.exercicio_id, Exercicio.ativo.is_(True)))
     
     if not exercicio:
         raise HTTPException(
@@ -84,6 +84,15 @@ def criar_itens_ficha(criar: ItemFichaCriar, professor=Depends(verificar_profess
             detail="Exercício já cadastrado neste treino"
         )
 
+    verificar_ordem = db.scalar(
+        select(ItemFicha).where(ItemFicha.treino_id == criar.treino_id, ItemFicha.ativo.is_(True), ItemFicha.ordem == criar.ordem))
+    
+    if verificar_ordem:
+        raise HTTPException(
+            status_code=409,
+            detail="Já existe um exercício com esta ordem neste treino"
+        )
+    
     item = ItemFicha(
         ficha_id = ficha.id,
         treino_id = treino.id,
@@ -138,7 +147,7 @@ def ficha_aluno(id: int, aluno=Depends(verificar_aluno), db: Session = Depends(g
 def atualizar_ficha(id: int, dados: AtualizarFicha, professor=Depends(verificar_professor), db: Session = Depends(get_db)):
 
     ficha = db.scalar(
-        select(Ficha).where(Ficha.id == id))
+        select(Ficha).where(Ficha.id == id, Ficha.ativo.is_(True)))
 
     if not ficha:
         raise HTTPException(
@@ -186,6 +195,15 @@ def atualizar_itens_ficha(id: int, dados: AtualizarItemFicha, professor=Depends(
             detail="Você não tem permissão para alterar esta ficha de treino"
         )
 
+    verificar_ordem = db.scalar(
+        select(ItemFicha).where(ItemFicha.treino_id == item_ficha.treino_id, ItemFicha.ativo.is_(True), ItemFicha.ordem == dados.ordem, ItemFicha.id != id))
+    
+    if verificar_ordem:
+        raise HTTPException(
+            status_code=409,
+            detail="Já existe um exercício com esta ordem neste treino"
+        )
+
     item_ficha.series = dados.series
     item_ficha.repeticoes = dados.repeticoes
     item_ficha.carga = dados.carga
@@ -201,7 +219,7 @@ def atualizar_itens_ficha(id: int, dados: AtualizarItemFicha, professor=Depends(
 def deletar_item_ficha(id: int, professor=Depends(verificar_professor), db: Session = Depends(get_db)):
 
     item_ficha = db.scalar(
-        select(ItemFicha).where(ItemFicha.id == id))
+        select(ItemFicha).where(ItemFicha.id == id, ItemFicha.ativo.is_(True)))
 
     if not item_ficha:
         raise HTTPException(
@@ -239,7 +257,7 @@ def deletar_item_ficha(id: int, professor=Depends(verificar_professor), db: Sess
 def deletar_ficha(id: int, professor=Depends(verificar_professor), db: Session = Depends(get_db)):
 
     ficha = db.scalar(
-        select(Ficha).where(Ficha.id == id))
+        select(Ficha).where(Ficha.id == id, Ficha.ativo.is_(True)))
 
     if not ficha:
         raise HTTPException(
@@ -252,7 +270,18 @@ def deletar_ficha(id: int, professor=Depends(verificar_professor), db: Session =
             status_code=403,
             detail="Você não tem permissão para excluir esta ficha"
         )
+    
+    treinos = db.scalars(
+    select(Treino).where(Treino.ficha_id == ficha.id, Treino.ativo.is_(True))).all()
+
+    for treino in treinos:
+        itens = db.scalars(
+        select(ItemFicha).where(ItemFicha.treino_id == treino.id, ItemFicha.ativo.is_(True))).all()
+
+        for item in itens:
+            item.ativo = False
         
+        treino.ativo = False
     ficha.ativo = False
     db.commit()
 
@@ -285,7 +314,16 @@ def treino_realizado(dados: ExecucaoHistorico, aluno=Depends(verificar_aluno), d
             status_code=404,
             detail="Item da ficha não encontrado"
         )
+    
+    treino = db.scalar(
+    select(Treino).where(Treino.id == item_ficha.treino_id, Treino.ativo.is_(True)))
 
+    if not treino:
+        raise HTTPException(
+            status_code=404,
+            detail="Treino não encontrado"
+        )
+        
     ficha = db.scalar(select(Ficha).where(Ficha.id == item_ficha.ficha_id, 
     Ficha.aluno_id == aluno.id, Ficha.ativo.is_(True)))
     
