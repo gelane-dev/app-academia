@@ -63,15 +63,16 @@ class ExecucaoHistorico(BaseModel):
     series_realizadas: int
     repeticoes_realizadas: int
     carga_utilizada: float
-    observacao: str
+    observacao: str | None
     
 class HistoricoResposta(BaseModel):
+    id: int
     item_ficha_id: int
     data_execucao: datetime
     series_realizadas: int
     repeticoes_realizadas: int
     carga_utilizada: float
-    observacao: str
+    observacao: str | None 
 
 
 
