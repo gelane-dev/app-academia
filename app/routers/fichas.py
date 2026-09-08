@@ -6,7 +6,7 @@ from datetime import datetime
 from ..database import get_db
 from ..core.seguranca import verificar_professor, verificar_aluno
 from ..schemas.ficha import FichaCriar, ItemFichaCriar, AtualizarFicha, FichaResposta, ItemFichaResposta, AtualizarItemFicha, ExecucaoHistorico, HistoricoResposta
-from ..models import Aluno, Ficha, ItemFicha, Exercicio, HistoricoExecucao
+from ..models import Aluno, Ficha, ItemFicha, Exercicio, HistoricoExecucao, Treino
 
 router = APIRouter()
 
@@ -62,13 +62,37 @@ def criar_itens_ficha(criar: ItemFichaCriar, professor=Depends(verificar_profess
             detail="Exercicio não encontrado"
         )
 
+    treino = db.scalar(select(Treino).where(Treino.id == criar.treino_id, Treino.ativo.is_(True)))
+        
+    if not treino:
+        raise HTTPException(
+            status_code=404,
+            detail="Treino não encontrado"
+        )
+
+    if criar.ficha_id != treino.ficha_id:
+        raise HTTPException(
+            status_code=404,
+            detail="Treino não encontrado"
+        )
+    
+    itemficha = db.scalar(select(ItemFicha).where(ItemFicha.treino_id == criar.treino_id, ItemFicha.exercicio_id == criar.exercicio_id, ItemFicha.ativo.is_(True)))
+        
+    if itemficha:
+        raise HTTPException(
+            status_code=409,
+            detail="Exercício já cadastrado neste treino"
+        )
+
     item = ItemFicha(
         ficha_id = ficha.id,
+        treino_id = treino.id,
         exercicio_id = criar.exercicio_id,
         series = criar.series,
         repeticoes = criar.repeticoes,
         carga = criar.carga,
         descanso = criar.descanso,
+        ordem = criar.ordem,
         ativo=True
     )
         
@@ -78,7 +102,7 @@ def criar_itens_ficha(criar: ItemFichaCriar, professor=Depends(verificar_profess
 
     return item
 
-@router.get("/ficha/{id}", response_model=FichaResposta)
+@router.get("/ficha/{id}", response_model=FichaCompletaResposta)
 def ficha_aluno(id: int, aluno=Depends(verificar_aluno), db: Session = Depends(get_db)):
 
     ficha = db.scalar(
@@ -97,10 +121,17 @@ def ficha_aluno(id: int, aluno=Depends(verificar_aluno), db: Session = Depends(g
         )
     
     ativos = db.scalars(
-        select(ItemFicha).where(ItemFicha.ficha_id == ficha.id, ItemFicha.ativo.is_(True))).all()
+        select(Treino).where(Treino.ficha_id == ficha.id, Treino.ativo.is_(True)).order_by(Treino.ordem)).all()
 
-    ficha.itens = ativos
+    for treino in ativos:
 
+        itemficha = db.scalars(
+        select(ItemFicha).where(ItemFicha.treino_id == treino.id, ItemFicha.ativo.is_(True)).order_by(ItemFicha.ordem)).all()
+
+        treino.itens = itemficha
+
+    ficha.treinos = ativos 
+    
     return ficha
 
 @router.put("/ficha/{id}", response_model=FichaResposta)
@@ -159,6 +190,7 @@ def atualizar_itens_ficha(id: int, dados: AtualizarItemFicha, professor=Depends(
     item_ficha.repeticoes = dados.repeticoes
     item_ficha.carga = dados.carga
     item_ficha.descanso = dados.descanso
+    item_ficha.ordem = dados.ordem
 
     db.commit()
     db.refresh(item_ficha)
@@ -293,3 +325,41 @@ def historico_progresso(aluno=Depends(verificar_aluno), db: Session = Depends(ge
         )
     
     return historicos
+
+@router.get("/ficha/itens/treino/{treino_id}", response_model=list[ItemFichaResposta])
+def listar_exercicios(treino_id: int, professor=Depends(verificar_professor), db: Session = Depends(get_db)):
+
+    treino = db.scalar(
+        select(Treino).where(Treino.id == treino_id, Treino.ativo.is_(True)))
+    
+    if not treino:
+        raise HTTPException(
+            status_code=404,
+            detail="Treino não encontrado"
+        )
+
+    ficha = db.scalar(
+        select(Ficha).where(Ficha.id == treino.ficha_id, Ficha.ativo.is_(True)))
+    
+    if not ficha:
+         raise HTTPException(
+            status_code=404,
+            detail="Ficha não encontrada"
+        )
+    
+    if ficha.professor_id != professor.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Você não tem permissão para visualizar este treino"
+        )
+
+    itens = db.scalars(
+        select(ItemFicha).where(ItemFicha.treino_id == treino_id,ItemFicha.ativo.is_(True)).order_by(ItemFicha.ordem)).all()
+
+    if not itens:
+        raise HTTPException(
+            status_code=404,
+            detail="Nenhum exercício cadastrado neste treino"
+        )
+
+    return itens
