@@ -12,3 +12,5 @@ class Treino(Base):
     ordem: Mapped[int] = mapped_column(Integer)
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
     ficha: Mapped["Ficha"] = relationship(back_populates="treinos")
+    itens: Mapped[list["ItemFicha"]] = relationship(back_populates="treino")
+   
