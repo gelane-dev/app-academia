@@ -32,7 +32,7 @@ def cria_exercicio(dados: ExercicioCriar, professor=Depends(verificar_professor)
 def listar_exercicios(db: Session = Depends(get_db)):
 
     exercicios = db.scalars(
-        select(Exercicio)).all()
+        select(Exercicio).where(Exercicio.ativo.is_(True))).all()
 
     return exercicios
 
@@ -41,14 +41,14 @@ def listar_exercicios(db: Session = Depends(get_db)):
 def lista_exercicio(id: int, professor=Depends(verificar_professor), db: Session = Depends(get_db)):
 
     exercicio = db.scalar(
-        select(Exercicio).where(Exercicio.id == id))
+        select(Exercicio).where(Exercicio.id == id).where(Exercicio.ativo.is_(True)))
 
     if not exercicio:
         raise HTTPException(
             status_code=404,
             detail="Exercicio não encontrado"
         )
-
+    
     return exercicio
 
 
@@ -56,7 +56,7 @@ def lista_exercicio(id: int, professor=Depends(verificar_professor), db: Session
 def atualizar_exercicio(id: int, dados: ExercicioAtualizar, professor=Depends(verificar_professor), db: Session = Depends(get_db)):
 
     exercicio = db.scalar(
-        select(Exercicio).where(Exercicio.id == id))
+        select(Exercicio).where(Exercicio.id == id).where(Exercicio.ativo.is_(True)))
 
     if not exercicio:
         raise HTTPException(
@@ -78,7 +78,7 @@ def atualizar_exercicio(id: int, dados: ExercicioAtualizar, professor=Depends(ve
 def deletar_exercicio(id: int, professor=Depends(verificar_professor), db: Session = Depends(get_db)):
 
     exercicio = db.scalar(
-        select(Exercicio).where(Exercicio.id == id))
+        select(Exercicio).where(Exercicio.id == id).where(Exercicio.ativo.is_(True)))
 
     if not exercicio:
         raise HTTPException(
@@ -93,8 +93,11 @@ def deletar_exercicio(id: int, professor=Depends(verificar_professor), db: Sessi
     
     if exercicio.video_public_id:
         deletar_video(exercicio.video_public_id)
-
-    db.delete(exercicio)
+        exercicio.video = None
+        exercicio.video_public_id = None
+       
+    exercicio.ativo = False
+    
     db.commit()
 
     return {"mensagem": "exercício deletado com sucesso"}
@@ -103,7 +106,7 @@ def deletar_exercicio(id: int, professor=Depends(verificar_professor), db: Sessi
 async def colocar_imagem(id: int, arquivo: UploadFile = File(), professor=Depends(verificar_professor), db: Session = Depends(get_db)):
 
     exercicio = db.scalar(
-        select(Exercicio).where(Exercicio.id == id))
+        select(Exercicio).where(Exercicio.id == id).where(Exercicio.ativo.is_(True)))
 
     if not exercicio:
         raise HTTPException(
@@ -150,7 +153,7 @@ async def colocar_imagem(id: int, arquivo: UploadFile = File(), professor=Depend
 async def colocar_video(id: int, arquivo: UploadFile = File(), professor=Depends(verificar_professor), db: Session = Depends(get_db)):
 
     exercicio = db.scalar(
-        select(Exercicio).where(Exercicio.id == id))
+        select(Exercicio).where(Exercicio.id == id).where(Exercicio.ativo.is_(True)))
 
     if not exercicio:
         raise HTTPException(
