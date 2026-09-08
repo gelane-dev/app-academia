@@ -16,3 +16,6 @@ class ItemFicha(Base):
     descanso: Mapped[int] = mapped_column(Integer)
     historicos: Mapped[list["HistoricoExecucao"]] = relationship(back_populates="item_ficha")
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+    treino_id: Mapped[int] = mapped_column(ForeignKey("treino.id"))
+    treino: Mapped["Treino"] = relationship(back_populates="itens")
+    ordem: Mapped[int] = mapped_column(Integer)
