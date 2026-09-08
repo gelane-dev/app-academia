@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
+from ..enums.dia_semana import DiaSemana
 
 class FichaCriar(BaseModel):
     aluno_id: int
@@ -30,7 +31,7 @@ class TreinoComItensResposta(BaseModel):
     id: int
     ficha_id: int
     nome: str
-    dia_semana: str
+    dia_semana: DiaSemana
     ordem: int
     itens: list[ItemFichaResposta]
 
