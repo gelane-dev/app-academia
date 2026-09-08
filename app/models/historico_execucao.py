@@ -16,4 +16,4 @@ class HistoricoExecucao(Base):
     series_realizadas: Mapped[int] = mapped_column(Integer)
     repeticoes_realizadas: Mapped[int] = mapped_column(Integer)
     carga_utilizada: Mapped[float] = mapped_column(Float)
-    observacao: Mapped[str] = mapped_column(String(500))
+    observacao: Mapped[str | None] = mapped_column(String(500), nullable=True)
