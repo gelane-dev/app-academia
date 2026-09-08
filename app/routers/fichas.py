@@ -323,7 +323,7 @@ def treino_realizado(dados: ExecucaoHistorico, aluno=Depends(verificar_aluno), d
             status_code=404,
             detail="Treino não encontrado"
         )
-        
+
     ficha = db.scalar(select(Ficha).where(Ficha.id == item_ficha.ficha_id, 
     Ficha.aluno_id == aluno.id, Ficha.ativo.is_(True)))
     
@@ -354,7 +354,7 @@ def treino_realizado(dados: ExecucaoHistorico, aluno=Depends(verificar_aluno), d
 def historico_progresso(aluno=Depends(verificar_aluno), db: Session = Depends(get_db)):
 
     historicos = db.scalars(
-        select(HistoricoExecucao).where(HistoricoExecucao.aluno_id == aluno.id,)).all()
+        select(HistoricoExecucao).where(HistoricoExecucao.aluno_id == aluno.id).order_by(HistoricoExecucao.data_execucao.desc())).all()
 
     if not historicos:
         raise HTTPException(
