@@ -81,8 +81,8 @@ Entidades principais: `User`, `Professor`, `Aluno`, `Exercicio`, `Ficha`, `ItemF
 
 ```bash
 # clonar o repositório
-git clone <url-do-repo>
-cd <nome-do-projeto>
+git clone https://github.com/gelane-dev/app-academia
+cd app-academia
 
 # criar e ativar ambiente virtual
 python -m venv venv
